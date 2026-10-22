@@ -1,0 +1,6 @@
+.venv/
+.jobs/
+*.log
+deploy/
+.vercel/
+node_modules/

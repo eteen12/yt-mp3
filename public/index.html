@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>YouTube to MP3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='black'/%3E%3Crect x='10' y='8' width='4' height='16' rx='1' fill='white'/%3E%3Crect x='18' y='8' width='4' height='16' rx='1' fill='white'/%3E%3C/svg%3E">
+<style>
+  /* White is the page. Everything else is black, greys, and one red for errors. */
+  :root {
+    --bg: #FFFFFF;
+    --panel: #F5F5F5;
+    --line: #E5E5E5;
+    --ink: #000000;
+    --muted: #737373;
+    --dim: #D4D4D4;
+    --danger: #DC2626;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Geist", system-ui, -apple-system, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+  }
+  button, input { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+
+  /* Top bar */
+  .bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 18px 24px;
+    font-weight: 600; font-size: 15px;
+  }
+  .mark { display: inline-flex; gap: 3px; }
+  .mark i { width: 4px; height: 16px; background: var(--ink); border-radius: 1px; }
+
+  main {
+    flex: 1;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 9vh 16px 64px;
+  }
+
+  /* Hero */
+  .hero { text-align: center; margin-bottom: 40px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 12px 4px 4px; font-size: 13px; margin-bottom: 20px;
+  }
+  .badge b { background: var(--panel); border-radius: 999px; padding: 2px 10px; font-weight: 500; }
+  h1 {
+    font-size: clamp(2.5rem, 8vw, 3.75rem);
+    font-weight: 500;
+    line-height: 1.02;
+    letter-spacing: -0.045em;
+    margin: 0 0 14px;
+  }
+  .lede { font-size: 17px; color: var(--muted); margin: 0; }
+
+  /* Cards */
+  .card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 20px;
+  }
+  .card + .card { margin-top: 12px; }
+
+  .entry { display: flex; gap: 8px; }
+  .entry input {
+    flex: 1; min-width: 0;
+    height: 48px; padding: 0 16px;
+    background: var(--panel);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    outline: none;
+    font-size: 15px;
+  }
+  .entry input::placeholder { color: var(--muted); }
+  .entry input:focus { border-color: var(--ink); background: var(--bg); }
+  .error { color: var(--danger); font-size: 14px; margin: 12px 4px 0; }
+
+  .btn {
+    height: 48px; padding: 0 22px;
+    border-radius: 999px; border: 1px solid var(--ink);
+    background: var(--ink); color: #fff;
+    font-weight: 500; font-size: 15px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { background: #262626; }
+  .btn.outline { background: var(--bg); color: var(--ink); border-color: var(--line); }
+  .btn.outline:hover { background: var(--panel); }
+  .btn:disabled { background: var(--panel); color: var(--muted); border-color: var(--panel); cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  /* Player */
+  .head { display: flex; align-items: center; gap: 14px; }
+  .disc {
+    position: relative; flex: none;
+    width: 56px; height: 56px; border-radius: 50%;
+    background:
+      conic-gradient(from 0deg, #fafafa, #a3a3a3, #f5f5f5, #737373, #e5e5e5, #a3a3a3, #fafafa);
+    box-shadow: 0 0 0 1px var(--line);
+    overflow: hidden;
+  }
+  .disc .art {
+    position: absolute; inset: 0;
+    background: center / 140% no-repeat;
+    filter: grayscale(1) contrast(1.05);
+  }
+  .disc::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 30deg, transparent 0 20%, rgba(255,255,255,.35) 25%, transparent 32% 70%, rgba(255,255,255,.25) 75%, transparent 82%);
+  }
+  .disc::before {
+    content: ""; position: absolute; z-index: 1; left: 50%; top: 50%;
+    width: 10px; height: 10px; margin: -5px; border-radius: 50%;
+    background: var(--bg); box-shadow: 0 0 0 1px var(--line);
+  }
+  .spinning .disc { animation: spin 3s linear infinite; }
+  .playing .disc { animation: spin 6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .meta { flex: 1; min-width: 0; }
+  .title {
+    font-weight: 600; font-size: 16px; line-height: 1.3; margin: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .title:empty::before { content: ""; display: block; width: 60%; height: 16px; border-radius: 6px; background: var(--panel); }
+  .by { color: var(--muted); font-size: 14px; margin: 2px 0 0; min-height: 21px; }
+
+  .state { text-align: right; flex: none; font-size: 13px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 500;
+  }
+  .pill::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink);
+  }
+  .working .pill::before { animation: blink 1s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  .kbps { color: var(--muted); display: block; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  .screen {
+    position: relative;
+    margin: 18px 0 14px;
+    height: 104px;
+    border-radius: 14px;
+    background: var(--panel);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .ready .screen { cursor: pointer; }
+
+  /* Connecting: pill bars, like a voice "initializing" state */
+  .init { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .pills { display: flex; gap: 5px; height: 34px; align-items: center; }
+  .pills span {
+    width: 10px; height: 34px; border-radius: 999px; background: var(--dim);
+    animation: rise 1.2s ease-in-out infinite; animation-delay: calc(var(--i) * 90ms);
+  }
+  .pills span:first-child, .pills span:last-child { background: var(--ink); }
+  @keyframes rise { 0%, 100% { transform: scaleY(.55); } 40% { transform: scaleY(1); background: var(--ink); } }
+  .init small { color: var(--muted); font-size: 13px; }
+
+  .wave { position: absolute; inset: 14px 16px; display: flex; align-items: center; gap: 2px; }
+  .wave span { flex: 1; min-width: 1px; border-radius: 2px; background: var(--dim); transition: height .4s ease; }
+  .wave span.on { background: var(--ink); }
+
+  .scrub { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .track { flex: 1; height: 4px; border-radius: 999px; background: var(--panel); position: relative; }
+  .ready .track { cursor: pointer; }
+  .track i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: var(--ink); }
+
+  .controls { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+  .play {
+    width: 48px; height: 48px; border-radius: 50%; flex: none;
+    border: 1px solid var(--line); background: var(--bg); cursor: pointer;
+    display: grid; place-items: center;
+  }
+  .play:hover:not(:disabled) { background: var(--panel); }
+  .play:disabled { opacity: .35; cursor: default; }
+  .play svg { width: 18px; height: 18px; }
+  .controls .spacer { flex: 1; }
+
+  footer { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 16px 32px; }
+
+  @media (max-width: 520px) {
+    .entry { flex-direction: column; }
+    .controls { flex-wrap: wrap; }
+    .controls .btn { flex: 1; }
+    .controls .spacer { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .spinning .disc, .playing .disc, .pills span, .working .pill::before { animation: none; }
+    .wave span { transition: none; }
+  }
+</style>
+</head>
+<body>
+<header class="bar"><span class="mark" aria-hidden="true"><i></i><i></i></span>YouTube to MP3</header>
+
+<main>
+  <section class="hero">
+    <span class="badge"><b>MP3</b>With cover art and song info</span>
+    <h1>YouTube to MP3</h1>
+    <p class="lede">Paste a link. The audio saves to your downloads.</p>
+  </section>
+
+  <form class="card" id="form" autocomplete="off">
+    <div class="entry">
+      <input id="url" name="url" type="url" inputmode="url" spellcheck="false"
+             placeholder="Paste a YouTube link" aria-label="YouTube link" autofocus>
+      <button class="btn" id="go" type="submit">Paste link</button>
+    </div>
+    <p class="error" id="error" role="alert" hidden></p>
+  </form>
+
+  <section class="card" id="player" hidden aria-live="polite">
+    <div class="head">
+      <div class="disc"><div class="art" id="art"></div></div>
+      <div class="meta">
+        <p class="title" id="title"></p>
+        <p class="by" id="by"></p>
+      </div>
+      <div class="state">
+        <span class="pill" id="pill">Connecting</span>
+        <span class="kbps" id="kbps"></span>
+      </div>
+    </div>
+
+    <div class="screen" id="screen">
+      <div class="init" id="init">
+        <div class="pills" aria-hidden="true"></div>
+        <small>Connecting to YouTube</small>
+      </div>
+      <div class="wave" id="wave" aria-hidden="true" hidden></div>
+    </div>
+
+    <div class="scrub">
+      <span id="t-now">0:00</span>
+      <div class="track" id="track"><i id="fill"></i></div>
+      <span id="t-end">--:--</span>
+    </div>
+
+    <div class="controls">
+      <button class="play" id="play" type="button" aria-label="Play preview" disabled>
+        <svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
+      </button>
+      <span class="spacer"></span>
+      <button class="btn outline" id="again" type="button" hidden>Convert another</button>
+      <button class="btn" id="save" type="button" disabled>Converting…</button>
+    </div>
+    <audio id="audio" preload="none"></audio>
+  </section>
+</main>
+
+<footer>Runs on your computer with yt-dlp and ffmpeg.</footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const form = $("form"), input = $("url"), go = $("go"), player = $("player"), audio = $("audio");
+const BARS = window.matchMedia("(max-width: 520px)").matches ? 48 : 80;
+const YT = /^(https?:\/\/)?((www|m|music)\.)?(youtube\.com|youtu\.be)\//i;
+const PLAY = '<path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.6-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/>';
+const PAUSE = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+
+let current = null, timer = null, state = "idle", duration = 0;
+let shown = 0, target = 0, raf = 0;
+
+// Pill bars for the connecting state.
+document.querySelector(".pills").innerHTML =
+  Array.from({ length: 11 }, (_, i) => `<span style="--i:${i}"></span>`).join("");
+
+function idleLabel() { go.textContent = input.value.trim() ? "Convert" : "Paste link"; }
+input.addEventListener("input", () => { idleLabel(); hideError(); });
+input.addEventListener("paste", () => {
+  setTimeout(() => { idleLabel(); if (state !== "working" && YT.test(input.value.trim())) start(); }, 0);
+});
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (state === "working") return;
+  if (!input.value.trim()) {
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!text) throw 0;
+      input.value = text;
+    } catch {
+      input.focus();
+      return showError("Copy a link from YouTube, then paste it into the box.");
+    }
+  }
+  start();
+});
+
+$("again").addEventListener("click", reset);
+$("save").addEventListener("click", () => current && download(current));
+
+function showError(msg) { const el = $("error"); el.textContent = msg; el.hidden = false; }
+function hideError() { $("error").hidden = true; }
+
+/* ---------- waveform ---------- */
+
+function seedBars(seed) {
+  // A stand-in shape (unique per video) until the real waveform is decoded.
+  let h = 2166136261;
+  for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  const rnd = () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296;
+  setBars(Array.from({ length: BARS }, (_, i) => {
+    const env = 0.35 + 0.65 * Math.sin(Math.PI * (i + 0.5) / BARS);
+    return env * (0.3 + 0.7 * rnd());
+  }));
+}
+
+function setBars(levels) {
+  const wave = $("wave");
+  if (wave.children.length !== levels.length) {
+    wave.innerHTML = levels.map(() => "<span></span>").join("");
+  }
+  [...wave.children].forEach((s, i) => { s.style.height = Math.round(8 + 92 * levels[i]) + "%"; });
+}
+
+async function realWaveform(id) {
+  // Decode the finished MP3 and draw its actual loudness. Skipped for very long audio.
+  if (duration > 1500 || !window.AudioContext) return;
+  try {
+    const buf = await (await fetch(`/api/file/${id}?play=1`)).arrayBuffer();
+    const ctx = new AudioContext();
+    const audioBuf = await ctx.decodeAudioData(buf);
+    ctx.close();
+    const data = audioBuf.getChannelData(0);
+    const step = Math.floor(data.length / BARS);
+    const peaks = [];
+    for (let b = 0; b < BARS; b++) {
+      let sum = 0;
+      for (let i = b * step, end = i + step; i < end; i += 16) sum += data[i] * data[i];
+      peaks.push(Math.sqrt(sum / (step / 16)));
+    }
+    const max = Math.max(...peaks) || 1;
+    if (id === current) setBars(peaks.map((p) => Math.pow(p / max, 0.8)));
+  } catch {}
+}
+
+function paintFill(frac) {
+  frac = Math.max(0, Math.min(1, frac));
+  const n = Math.round(frac * BARS);
+  [...$("wave").children].forEach((s, i) => s.classList.toggle("on", i < n));
+  $("fill").style.width = frac * 100 + "%";
+}
+
+/* ---------- progress ---------- */
+
+// Ease toward the server's number so movement is smooth between polls.
+function animate() {
+  shown += (target - shown) * 0.2;
+  if (target - shown < 0.3) shown = target;
+  paintFill(shown / 100);
+  raf = shown === target ? 0 : requestAnimationFrame(animate);
+}
+function setProgress(p) {
+  target = Math.max(target, p);
+  if (!raf) raf = requestAnimationFrame(animate);
+}
+
+function setPhase(phase) {
+  player.className = "card " + (phase === "done" ? "ready" : "working spinning");
+  $("init").hidden = phase !== "connecting";
+  $("wave").hidden = phase === "connecting";
+}
+
+async function start() {
+  const url = input.value.trim();
+  hideError();
+  if (!YT.test(url)) return showError("That isn't a YouTube link. Paste a link from youtube.com or youtu.be.");
+  clearTimeout(timer);
+  stopAudio();
+  state = "working";
+  shown = target = 0;
+  duration = 0;
+  player.hidden = false;
+  setPhase("connecting");
+  $("art").style.backgroundImage = "";
+  $("title").textContent = "";
+  $("by").textContent = "";
+  $("pill").textContent = "Connecting";
+  $("kbps").textContent = "";
+  $("t-now").textContent = "0:00";
+  $("t-end").textContent = "--:--";
+  $("again").hidden = true;
+  $("play").disabled = true;
+  $("save").disabled = true;
+  $("save").textContent = "Converting…";
+  go.disabled = true;
+  seedBars(url);
+  paintFill(0);
+
+  try {
+    const r = await fetch("/api/convert", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url }),
+    });
+    const job = await r.json();
+    if (!r.ok) throw new Error(job.error);
+    current = job.id;
+    poll(job.id, false);
+  } catch (err) {
+    failed(err.message || "Couldn't reach the converter. Make sure it's still running.");
+  }
+}
+
+async function poll(id, seeded) {
+  if (id !== current) return;
+  let job;
+  try {
+    const r = await fetch("/api/job/" + id);
+    job = await r.json();
+    if (!r.ok) throw new Error(job.error);
+  } catch (err) {
+    return failed(err.message || "Lost touch with the converter. Make sure it's still running.");
+  }
+  const m = job.meta || {};
+  if (!seeded && m.id) { seedBars(m.id); seeded = true; }
+  if (m.title) $("title").textContent = m.title;
+  if (m.uploader) $("by").textContent = m.uploader;
+  if (m.thumbnail) $("art").style.backgroundImage = `url("${encodeURI(decodeURI(m.thumbnail)).replace(/"/g, "%22")}")`;
+  if (m.duration) { duration = m.duration; $("t-end").textContent = fmt(duration); }
+
+  if (job.status === "error") return failed(job.error);
+
+  if (job.status === "done") return finished(id, job);
+
+  setPhase(job.phase);
+  setProgress(job.percent);
+  if (job.phase === "connecting") {
+    $("pill").textContent = "Connecting";
+  } else {
+    $("pill").textContent = "Converting";
+    $("kbps").textContent = Math.floor(job.percent) + "%";
+    if (duration) $("t-now").textContent = fmt(Math.min(job.encoded, duration));
+  }
+  timer = setTimeout(() => poll(id, seeded), 250);
+}
+
+function finished(id, job) {
+  state = "done";
+  cancelAnimationFrame(raf);
+  raf = 0;
+  shown = target = 100;
+  setPhase("done");
+  paintFill(0);
+  $("pill").textContent = "Ready";
+  $("kbps").textContent = job.kbps ? job.kbps + " kbps" : "";
+  $("t-now").textContent = "0:00";
+  $("play").disabled = false;
+  $("save").disabled = false;
+  $("save").textContent = "Download MP3";
+  $("again").hidden = false;
+  go.disabled = false;
+  idleLabel();
+  audio.src = `/api/file/${id}?play=1`;
+  download(id);
+  realWaveform(id);
+}
+
+function failed(msg) {
+  state = "idle";
+  go.disabled = false;
+  idleLabel();
+  player.hidden = true;
+  showError(msg);
+}
+
+/* ---------- preview player ---------- */
+
+$("play").addEventListener("click", () => (audio.paused ? audio.play() : audio.pause()));
+audio.addEventListener("play", () => { player.classList.add("playing"); $("play-icon").innerHTML = PAUSE; $("play").ariaLabel = "Pause preview"; tick(); });
+audio.addEventListener("pause", () => { player.classList.remove("playing"); $("play-icon").innerHTML = PLAY; $("play").ariaLabel = "Play preview"; });
+audio.addEventListener("ended", () => { paintFill(0); $("t-now").textContent = "0:00"; });
+
+function tick() {
+  if (state !== "done") return;
+  const d = audio.duration || duration;
+  if (d) {
+    paintFill(audio.currentTime / d);
+    $("t-now").textContent = fmt(audio.currentTime);
+  }
+  if (!audio.paused) requestAnimationFrame(tick);
+}
+
+function seekFrom(e, el) {
+  if (state !== "done") return;
+  const rect = el.getBoundingClientRect();
+  const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const d = audio.duration || duration;
+  if (!d) return;
+  audio.currentTime = frac * d;
+  if (audio.paused) audio.play();
+  tick();
+}
+$("screen").addEventListener("click", (e) => seekFrom(e, $("wave")));
+$("track").addEventListener("click", (e) => seekFrom(e, $("track")));
+
+function stopAudio() {
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+}
+
+/* ---------- misc ---------- */
+
+function download(id) {
+  const a = document.createElement("a");
+  a.href = "/api/file/" + id;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function reset() {
+  current = null;
+  state = "idle";
+  clearTimeout(timer);
+  stopAudio();
+  player.hidden = true;
+  go.disabled = false;
+  input.value = "";
+  idleLabel();
+  hideError();
+  input.focus();
+}
+
+function fmt(sec) {
+  if (!isFinite(sec)) return "--:--";
+  sec = Math.floor(sec);
+  const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = String(sec % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+</script>
+</body>
+</html>
